@@ -326,8 +326,9 @@ could break.
   only, as of v1.1.0.
 - GitHub Actions scheduled workflows remain enabled. GitHub auto-disables schedules in
   repositories with no commit activity for 60 days, so the project depends on either
-  regular commits or the data-update commits themselves resetting that clock. See open
-  question 1: as of this audit, `data/vix.js` has not changed since 2026-07-09.
+  regular commits or the data-update commits themselves resetting that clock. Verified
+  working on 2026-08-25: `data/vix.js` was committed the same day, and the workflow has
+  produced 261 data commits since the local clone was last fetched.
 - Yahoo Finance's internal JSON API at `/v8/finance/chart/` continues to return VIX data
   under `chart.result[0].meta.regularMarketPrice`. It is an undocumented, unsupported
   endpoint and can change without notice.
@@ -442,8 +443,8 @@ favor data-visualization features (sparkline, percentile rank) ahead of strategy
 and ticker verification. v1.2.1 is a documentation-only release that consolidated ten
 documents into four.
 
-Phase 2 is not closed. Before phase 3 starts, the operational question about the data
-pipeline (open question 1) needs an answer, because every planned feature from v1.3.0
+Phase 2 is not closed, but the data pipeline it introduced is confirmed healthy as of
+2026-08-25, which is the precondition for phase 3: every planned feature from v1.3.0
 onward assumes reliable historical and current data.
 
 ### Milestone Table
@@ -907,7 +908,7 @@ There is no server-side monitoring, because there is no server. All monitoring i
 | Check | How | When |
 |-------|-----|------|
 | The site loads and shows a value | Open `https://azqato.github.io/vix/strategy.html` and confirm a number and a tier banner appear | Per release, and after any change to `vix.js` |
-| `update-vix.yml` runs are succeeding | Actions tab, filter by "Update VIX Data" | Weekly. This is the single most important recurring check, and the one that would have caught open question 1 |
+| `update-vix.yml` runs are succeeding | Actions tab, filter by "Update VIX Data" | Weekly. This is the single most important recurring check. It is also the check that resolved open question 1: a local clone can be hundreds of commits behind and look dormant when the pipeline is fine, so `git fetch` before concluding anything |
 | `data/vix.js` is current | Open `https://azqato.github.io/vix/data/vix.js` and compare `fetchedAt` and `timestamp` to the current time during market hours | Weekly, or whenever the display looks stale |
 | No console errors | DevTools console on all three pages | Per release |
 | Mobile rendering | Test at a 375px viewport width | Per release |
@@ -1089,9 +1090,9 @@ default is all rights reserved. Logged as open question 2.
 
 ```javascript
 window.__VIX_DATA__ = {
-  "value": 15.84,
-  "timestamp": "2026-07-09T20:15:01.000Z",
-  "fetchedAt": 1783631218669
+  "value": 15.45,
+  "timestamp": "2026-08-25T20:15:01.000Z",
+  "fetchedAt": 1787695115216
 };
 ```
 
@@ -1940,7 +1941,7 @@ and what was decided.
 
 | ID | Discrepancy | Trust | Resolution |
 |----|-------------|-------|------------|
-| D-01 | The UI shows a `LIVE` badge whenever the value came from `window.__VIX_DATA__` or the proxy on this page load, regardless of how old the quote is. `data/vix.js` currently holds a value quoted 2026-07-09, so production shows `LIVE` next to a value roughly seven weeks old. Every document described `LIVE` as meaning fresh data. | Code. The badge logic in `strategy.html` and `custom.html` sets `fromCache: false` for the data-file path, which maps to `LIVE`. | Documented as-is throughout: the badge means "read this page load", not "quoted recently". The timestamp text beside it is the honest freshness signal. Fixing the badge is a code change and is open question 1's dependent. |
+| D-01 | The UI shows a `LIVE` badge whenever the value came from `window.__VIX_DATA__` or the proxy on this page load, regardless of how old the quote is. Every document described `LIVE` as meaning fresh data. In normal operation the gap is small, at most a few hours outside market days, but it is unbounded: if the scheduled workflow stops, the badge keeps saying `LIVE` next to an arbitrarily old number and nothing in the UI says otherwise. | Code. The badge logic in `strategy.html` and `custom.html` sets `fromCache: false` for the data-file path, which maps to `LIVE`. | Documented as-is throughout: the badge means "read this page load", not "quoted recently". The timestamp text beside it is the honest freshness signal. Fixing the badge, by deriving freshness from `timestamp` rather than from which code path produced the value, is a code change and is recorded in Known Technical Debt. |
 | D-02 | PRD said "strategy.html refreshes VIX every 60 seconds automatically". The 60-second interval exists, but `fetchVIX()` returns the cached value untouched when it is under 30 minutes old, so the displayed value can change at most every 30 minutes. | Code. Both the interval and the TTL are unambiguous. | Both facts documented together in the [Feature List](#feature-list). The original sentence's intent (the page updates itself without user action) is true; its implied frequency is not. |
 | D-03 | PRD, RUNBOOK, and the PRFAQ all described the Refresh button as forcing a "live fetch". Since v1.1.0 it clears the cache and re-runs `fetchVIX()`, which reads the committed `data/vix.js` first. The network is only touched if that global is missing. | Code. | Reworded everywhere to "clears the cache and re-runs the fetch path". The user-facing consequence, that Refresh cannot produce a fresher number than the last workflow run, is stated in the runbook's error table and in the external FAQ. |
 | D-04 | PRD Success Criteria required the risk disclaimer to be "visible without scrolling" on `index.html` and `strategy.html`. It is below the fold on all three pages, and on `strategy.html` the main disclaimer is inside a collapsed accordion. | Code, for what is. The document, for what was intended. | Neither text was deleted. The criterion is preserved verbatim in [Success Criteria](#success-criteria) with the observed reality beside it and marked unmet. Resolving it is a product decision, open question 3. |
@@ -1960,7 +1961,7 @@ and what was decided.
 | D-18 | `docs/PRFAQ.md` was dated 2026-06-08 and its press release describes a June 8 launch, but it was edited after v1.2.0 to add a Custom-builder FAQ, leaving a document that is simultaneously a launch-day artifact and a current one. | The document, for the launch narrative. The code, for the feature list. | The press release in this file keeps its original 2026-06-08 dateline, since a press release records a moment. The FAQs were updated to current state and are dated separately. |
 | D-19 | The old README was written for developers and led with a tech stack table, install steps, and deploy commands. The required standard is that the README is for a general reader and carries no commands. | The standard. | `README.md` fully rewritten. Every command, version, and technical detail it carried now lives in the [Runbook](#runbook) and [Technical Requirements](#technical-requirements) sections here, so nothing was lost. |
 | D-20 | No document stated a prose style rule, a browser-testing rule, or a removal policy. | Nothing existed to contradict. | Defaults adopted and written in as [Writing Style](#writing-style), [Browser Testing](#browser-testing), and [Deprecation and Removal](#deprecation-and-removal). The removal section documents the project's existing practice, which already matched the default. |
-| D-21 | `data/vix.js` has not been updated since 2026-07-09, 47 days before this audit, despite a schedule that should produce up to 8 runs per weekday. No document acknowledged that the pipeline might be dormant. | Code and git history, as far as the local clone can see. | Raised as open question 1 and added to the weekly monitoring check as the single most important recurring item. Not resolved: the Actions tab was not accessible during a read-only local audit. |
+| D-21 | During the audit, `data/vix.js` appeared not to have been updated since 2026-07-09, 47 days earlier, despite a schedule that should produce up to 8 runs per weekday. It looked as though the pipeline had gone dormant, and no document acknowledged that possibility. | Neither. The local clone was the wrong source. | **Resolved 2026-08-25, and the resolution is the lesson.** A `git fetch` showed the local clone was 261 commits behind `origin/main`, every one of them a `chore: update VIX data [skip ci]` commit. The workflow is healthy and the published value is same-day. The audit had drawn a confident conclusion about production from an unfetched clone. Fetch before diagnosing. The weekly monitoring check is retained regardless, because the failure mode it guards against is real even though it had not occurred. |
 | D-22 | The old TENETS.md and the old SECURITY.md both described `index.html` and `strategy.html` as having no user input, which was written before `custom.html`. The security document was updated for v1.2.0; the tenets document was not, but its claim was general enough to remain true. | Code. | Both restated accurately here. |
 
 ---
@@ -1972,12 +1973,12 @@ than the confident parts.
 
 ### What Was Not Fully Understood
 
-- **The live state of the GitHub Actions workflow.** The audit was read-only and local.
-  The Actions run history, whether the schedule is currently enabled, whether recent runs
-  succeeded or failed, and whether GitHub has auto-disabled it, were all unobservable. The
-  only evidence available is that `data/vix.js` has not changed in the local clone or on
-  `origin/main` since 2026-07-09. That could mean the workflow is broken, disabled, or
-  simply that the local clone has not fetched. This is the largest gap in the audit.
+- **The live state of the GitHub Actions workflow.** Initially unobservable, because the
+  audit was read-only and local: the run history, whether the schedule is enabled, and
+  whether recent runs succeeded were all invisible from a clone. Resolved on 2026-08-25 by
+  fetching, which showed 261 unpulled data commits and a same-day value. The workflow is
+  healthy. What remains unobservable is the run history itself, so a pattern of failures
+  interleaved with successes would still be invisible from here.
 - **Whether branch protection is configured on `main`.** Not visible from a clone. It
   matters because `data/vix.js` executes as JavaScript on every page load.
 - **Actual production behavior.** Nothing was loaded in a browser during this audit. Every
@@ -2029,7 +2030,7 @@ than the confident parts.
 | Fetching `data/vix.js` instead of loading it as a script | Same. `fetch()` of a local file is blocked under `file://` |
 | Removing an IIFE from an inline boot script | A `SyntaxError` on page load, silently killing every DOM update on that page |
 | Changing the `RAW` tier weights in `strategy.js` alone | `index.html`'s hardcoded table now contradicts the dashboard |
-| Removing the allorigins.win fallback from `vix.js` | The site has no recovery path if `data/vix.js` is ever unavailable. The debt entry proposing this removal is conditional on the data-file path being verified stable, which open question 1 currently makes doubtful |
+| Removing the allorigins.win fallback from `vix.js` | The site has no recovery path if `data/vix.js` is ever unavailable. The debt entry proposing this removal is conditional on the data-file path being verified stable. It now has 261 consecutive successful runs behind it, but the proxy costs nothing to keep and is the only recovery path that exists |
 | Adding a `package.json` | Nothing breaks immediately, but it ends the "the repository is the artifact" property and invites a build step, which would break `file://` |
 | Changing `sanitizeTicker()`'s allowlist | Directly widens the only user-input attack surface in the app |
 | Renaming any file listed in the [Public Surface](#public-surface-item-by-item) table | Breaks an address with no redirect mechanism available to fix it |
@@ -2047,13 +2048,14 @@ started.
 Numbered so they can be answered by reference. When one is answered, fold the answer into
 the relevant section and mark it answered here rather than deleting it.
 
-1. **Is the `update-vix.yml` workflow still running?** `data/vix.js` has not changed since
-   2026-07-09, 47 days before this audit. Check the Actions tab. If the schedule was
-   auto-disabled for inactivity, any commit re-enables it. If runs are failing, the likely
-   cause is a change to the Yahoo Finance response shape, which would need `parseResponse()`
-   in `vix.js` and the `jq` filters in the workflow updated together. This blocks any
-   confident statement about data freshness and affects D-01, D-21, and the conditional
-   debt item about removing the proxy fallback.
+1. **Is the `update-vix.yml` workflow still running? Answered 2026-08-25: yes.** The
+   question was raised because `data/vix.js` appeared 47 days stale. It was not. The local
+   clone was 261 commits behind, all of them data commits, and the published value is
+   same-day. The question is kept because the diagnostic procedure is worth recording: run
+   `git fetch` first, then check the Actions tab. If the schedule is ever auto-disabled for
+   inactivity, any commit re-enables it. If runs are failing, the likely cause is a change
+   to the Yahoo Finance response shape, which would need `parseResponse()` in `vix.js` and
+   the `jq` filters in the workflow updated together.
 2. **Should the repository have a `LICENSE` file?** The FAQ describes the project as open
    source and invites forking, but with no license the legal default is all rights
    reserved, which contradicts the invitation. If forking is intended, add a license. If
@@ -2502,9 +2504,11 @@ persistent user state, which strains the no-backend tenet hardest.
 
 **15. What is the biggest risk to the product right now?**
 The data pipeline going quiet without anyone noticing. There is no alerting, no error
-reporting, and no uptime monitoring, so a failure is discovered when a human happens to
-open the page. As of this audit the published value is roughly seven weeks old and it is
-not yet established why. See open question 1.
+reporting, and no uptime monitoring, so a failure would be discovered only when a human
+happens to open the page, and the `LIVE` badge would keep claiming the stale number is
+current. The pipeline is healthy as of 2026-08-25, with 261 consecutive data commits, so
+this is a latent risk rather than an active one. The weekly Actions check in the Runbook
+is the only thing standing in for monitoring.
 
 **16. What would v4.0 look like, and why is it last?**
 A portfolio tracker: the user enters their holdings and the app computes the dollar delta
