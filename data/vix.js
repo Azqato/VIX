@@ -1,5 +1,5 @@
 window.__VIX_DATA__ = {
-  "value": 14.25,
-  "timestamp": "2026-09-04T19:35:31.000Z",
-  "fetchedAt": 1788551446539
+  "value": 14.53,
+  "timestamp": "2026-09-04T20:15:01.000Z",
+  "fetchedAt": 1788555815521
 };
